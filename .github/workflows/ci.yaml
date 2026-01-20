@@ -1,0 +1,55 @@
+name: CI Embebidos (C + Pytest)
+
+on: [push, pull_request]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. Descargar el codigo del repositorio
+    - name: Checkout de codigo
+      uses: actions/checkout@v4
+
+    # Cache APT para acelerar instalaciones repetidas
+    - name: Cache de paquetes APT
+      uses: actions/cache@v3
+      id: cache-apt
+      with:
+        path: /var/cache/apt/archives
+        key: ${{ runner.os }}-apt-gtk3
+        restore-keys: |
+          ${{ runner.os }}-apt-
+
+    # 2. Instalar dependencias del sistema (C y GTK)
+    - name: Instalar compilador y librerias GTK
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential libgtk-3-dev
+
+    # 3. Compilar la capa base en C
+    # IMPORTANTE: Usamos -C src porque el Makefile esta en la carpeta src
+    - name: Compilar codigo en C
+      run: |
+        make -C src
+
+    # 4. Configurar Python para la capa intermedia
+    - name: Configurar Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    # 5. Instalar Pytest y dependencias
+    - name: Instalar dependencias de Python
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    # 6. Ejecutar TODOS los tests
+    # pytest busca recursivamente en todas las carpetas (tests/Capa1..., tests/Capa2...)
+    # -v: Verbose (muestra cada test individualmente)
+    # -s: Show output (permite ver los printf de C en la consola de GitHub)
+    - name: Ejecutar pruebas de Pytest
+      run: |
+        pytest -v -s
